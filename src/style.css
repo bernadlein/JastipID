@@ -81,3 +81,20 @@ tbody tr:hover{background:rgba(96,165,250,.05)}
 .flex{display:flex;align-items:center;gap:10px}
 .right{margin-left:auto}
 .hidden{display:none}
+
+/* --- mobile card-table --- */
+table.responsive thead th { position: sticky; top: 0; background: transparent; }
+@media (max-width: 640px) {
+  table.responsive thead { display: none; }
+  table.responsive, table.responsive tbody, table.responsive tr, table.responsive td { display: block; width: 100%; }
+  table.responsive tr { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: #0f172a; }
+  table.responsive td { border-bottom: none; padding: 6px 0; }
+  table.responsive td::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+}
+/* chips & pills for region filter */
+.chips { display: flex; gap: 8px; overflow: auto; padding: 8px 0; margin: 10px 0; }
+.chip { padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: rgba(18,26,43,.7); color: var(--muted); white-space: nowrap; }
+.chip.active { border-color: var(--brand); color: var(--text); }
+.pill { padding: 4px 8px; border-radius: 999px; background: linear-gradient(135deg,var(--brand),var(--brand-2)); color: #07111f; font-size: 12px; }
+
+
