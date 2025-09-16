@@ -1,52 +1,58 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo, useContext, createContext } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import PortalApp from './PortalApp';
-import AdminApp from './AdminApp'; // file admin lama kamu
+import AdminApp from './AdminApp';
 import { LogIn, LogOut } from 'lucide-react';
 
+/* ===================== AUTH LAYER (Context) ===================== */
+const AuthCtx = createContext(null);
+function AuthProvider({ children }) {
+  const [session, setSession] = useState(undefined); // undefined=loading, null=guest
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let unsub = () => {};
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      const { data } = supabase.auth.onAuthStateChange((_evt, s) => setSession(s));
+      unsub = data.subscription.unsubscribe;
+    })();
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!session?.user?.id) { setIsAdmin(false); return; }
+      const { data, error } = await supabase.rpc('is_admin');
+      if (!cancelled) setIsAdmin(!error && !!data);
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  const value = useMemo(() => ({ session, isAdmin }), [session, isAdmin]);
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+}
+function useAuth() { return useContext(AuthCtx); }
+
+/* ===================== ACTIONS ===================== */
 async function signInGoogle() {
   await supabase.auth.signInWithOAuth({
     provider: 'google',
-    // arahkan ke rute yang kita sediakan sendiri
-    options: { redirectTo: `${window.location.origin}/auth/callback` },
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+      queryParams: { prompt: 'select_account' },
+    },
   });
 }
-
 async function signOut() {
   await supabase.auth.signOut();
   window.location.assign('/');
 }
 
-function useAuth() {
-  const [session, setSession] = useState(undefined); // undefined=loading, null=guest
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    let unsubscribe = () => {};
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-
-      const { data } = supabase.auth.onAuthStateChange((_event, s) => {
-        setSession(s);
-      });
-      unsubscribe = data.subscription.unsubscribe;
-    })();
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      if (!session) { setIsAdmin(false); return; }
-      const { data, error } = await supabase.rpc('is_admin');
-      setIsAdmin(!error && !!data);
-    })();
-  }, [session?.user?.id]);
-
-  return { session, isAdmin };
-}
-
+/* ===================== UI BITS ===================== */
 function Header() {
   const { session } = useAuth();
   return (
@@ -58,10 +64,7 @@ function Header() {
           <span className="badge">PWA</span>
         </div>
         <div className="flex right">
-          <nav className="tabs">
-            <Link className="tab" to="/portal">Customer</Link>
-            <Link className="tab" to="/admin">Admin</Link>
-          </nav>
+          {/* Hilangkan tab Customer/Admin supaya simpel */}
           <div className="lang">
             {session
               ? <button className="btn" onClick={signOut}><LogOut size={16}/> Logout</button>
@@ -78,7 +81,6 @@ function RequireAuth({ children }) {
   if (session === undefined) return <div className="container">Loading…</div>;
   return session ? children : <Navigate to="/login" replace />;
 }
-
 function RequireAdmin({ children }) {
   const { session, isAdmin } = useAuth();
   if (session === undefined) return <div className="container">Loading…</div>;
@@ -99,22 +101,48 @@ function LoginPage() {
   );
 }
 
-// === Callback handler penting: jangan hapus ===
+/* ===== Callback yang robust: tukar token, bersihkan URL, redirect by role ===== */
 function AuthCallback() {
   const navigate = useNavigate();
+
   useEffect(() => {
     (async () => {
-      // Tukar code->session lalu bersihkan URL dan masuk ke portal
-      await supabase.auth.exchangeCodeForSession(window.location.href);
-      navigate('/portal', { replace: true });
+      try {
+        const hasHash = window.location.hash.includes('access_token');
+        const hasCode = window.location.search.includes('code=');
+        if (!hasHash && !hasCode) {
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+        if (error) throw error;
+
+        // Bersihkan fragment/query dari URL callback biar tidak nyangkut
+        window.history.replaceState({}, document.title, '/auth/callback');
+
+        // Cek role → arahkan ke halaman yang tepat
+        const { data, error: errRole } = await supabase.rpc('is_admin');
+        if (errRole) {
+          // fallback: kalau gagal cek role, minimal ke portal
+          navigate('/portal', { replace: true });
+        } else {
+          navigate(data ? '/admin' : '/portal', { replace: true });
+        }
+      } catch (e) {
+        console.error('OAuth callback error:', e);
+        navigate('/login', { replace: true });
+      }
     })();
   }, [navigate]);
+
   return <div className="container">Menyelesaikan login…</div>;
 }
 
+/* ===================== APP ROOT ===================== */
 export default function App() {
   return (
-    <>
+    <AuthProvider>
       <Header />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -123,6 +151,6 @@ export default function App() {
         <Route path="/admin" element={<RequireAdmin><AdminApp /></RequireAdmin>} />
         <Route path="*" element={<Navigate to="/portal" replace />} />
       </Routes>
-    </>
+    </AuthProvider>
   );
 }
