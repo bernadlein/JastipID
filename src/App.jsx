@@ -43,6 +43,7 @@ async function signInGoogle() {
     provider: 'google',
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
+      flowType: 'pkce',    
       queryParams: { prompt: 'select_account' },
     },
   });
