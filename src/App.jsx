@@ -43,7 +43,7 @@ async function signInGoogle() {
     provider: 'google',
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
-      flowType: 'pkce',    
+      flowType: 'pkce',
       queryParams: { prompt: 'select_account' },
     },
   });
@@ -65,7 +65,6 @@ function Header() {
           <span className="badge">PWA</span>
         </div>
         <div className="flex right">
-          {/* Hilangkan tab Customer/Admin supaya simpel */}
           <div className="lang">
             {session
               ? <button className="btn" onClick={signOut}><LogOut size={16}/> Logout</button>
@@ -102,34 +101,39 @@ function LoginPage() {
   );
 }
 
-/* ===== Callback yang robust: tukar token, bersihkan URL, redirect by role ===== */
+/* ===== Callback: handle PKCE (?code=) & implicit (#access_token) ===== */
 function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
       try {
-        const hasHash = window.location.hash.includes('access_token');
-        const hasCode = window.location.search.includes('code=');
-        if (!hasHash && !hasCode) {
+        const url = new URL(window.location.href);
+        const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+        const qs   = url.searchParams;
+
+        const hasToken = hash.has('access_token');
+        const hasCode  = qs.has('code');
+
+        if (!hasToken && !hasCode) {
           navigate('/login', { replace: true });
           return;
         }
 
-        const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
-        if (error) throw error;
+        if (hasToken) {
+          const { error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+          if (error) throw error;
+        }
 
-        // Bersihkan fragment/query dari URL callback biar tidak nyangkut
+        // bersihkan URL callback
         window.history.replaceState({}, document.title, '/auth/callback');
 
-        // Cek role → arahkan ke halaman yang tepat
-        const { data, error: errRole } = await supabase.rpc('is_admin');
-        if (errRole) {
-          // fallback: kalau gagal cek role, minimal ke portal
-          navigate('/portal', { replace: true });
-        } else {
-          navigate(data ? '/admin' : '/portal', { replace: true });
-        }
+        // redirect by role
+        const { data, error: roleErr } = await supabase.rpc('is_admin');
+        navigate(!roleErr && data ? '/admin' : '/portal', { replace: true });
       } catch (e) {
         console.error('OAuth callback error:', e);
         navigate('/login', { replace: true });
