@@ -1,54 +1,52 @@
-// src/App.jsx
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
-import { LogIn, LogOut } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import PortalApp from './PortalApp';
-import AdminApp from './AdminApp';
+import AdminApp from './AdminApp'; // file admin lama kamu
+import { LogIn, LogOut } from 'lucide-react';
 
-/* ---------- Auth helpers ---------- */
 async function signInGoogle() {
-  // Simpel saja: biarkan Supabase pakai Site URL (tanpa path khusus)
-  await supabase.auth.signInWithOAuth({ provider: 'google' });
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    // arahkan ke rute yang kita sediakan sendiri
+    options: { redirectTo: `${window.location.origin}/auth/callback` },
+  });
 }
+
 async function signOut() {
   await supabase.auth.signOut();
-  location.href = '/';
+  window.location.assign('/');
 }
 
-/* ---------- Auth state hook ---------- */
 function useAuth() {
-  // undefined = loading, null = guest, object = logged in
-  const [session, setSession] = useState(undefined);
+  const [session, setSession] = useState(undefined); // undefined=loading, null=guest
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    let unsubscribe = () => {};
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
-      // pantau perubahan session
-      const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-      return () => sub.subscription?.unsubscribe?.();
+
+      const { data } = supabase.auth.onAuthStateChange((_event, s) => {
+        setSession(s);
+      });
+      unsubscribe = data.subscription.unsubscribe;
     })();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     (async () => {
       if (!session) { setIsAdmin(false); return; }
-      try {
-        const { data, error } = await supabase.rpc('is_admin');
-        if (error) { console.warn(error.message); setIsAdmin(false); }
-        else setIsAdmin(!!data);
-      } catch {
-        setIsAdmin(false);
-      }
+      const { data, error } = await supabase.rpc('is_admin');
+      setIsAdmin(!error && !!data);
     })();
   }, [session?.user?.id]);
 
   return { session, isAdmin };
 }
 
-/* ---------- UI ---------- */
 function Header() {
   const { session } = useAuth();
   return (
@@ -67,7 +65,7 @@ function Header() {
           <div className="lang">
             {session
               ? <button className="btn" onClick={signOut}><LogOut size={16}/> Logout</button>
-              : <Link className="btn" to="/login"><LogIn size={16}/> Login</Link>}
+              : <button className="btn" onClick={signInGoogle}><LogIn size={16}/> Login</button>}
           </div>
         </div>
       </div>
@@ -88,12 +86,9 @@ function RequireAdmin({ children }) {
 }
 
 function LoginPage() {
-  const { session } = useAuth();
-  // jika sudah login (mis. selesai dari callback), langsung ke portal
-  if (session) return <Navigate to="/portal" replace />;
   return (
     <div className="container">
-      <div className="card" style={{maxWidth:420, margin:'40px auto'}}>
+      <div className="card" style={{ maxWidth: 420, margin: '40px auto' }}>
         <h2>Masuk</h2>
         <p>Gunakan Google supaya cepat.</p>
         <button className="btn btn-primary" onClick={signInGoogle}>
@@ -104,38 +99,29 @@ function LoginPage() {
   );
 }
 
-/* ---------- Callback handler: tukar code/token -> session ---------- */
+// === Callback handler penting: jangan hapus ===
 function AuthCallback() {
   const navigate = useNavigate();
   useEffect(() => {
     (async () => {
-      try {
-        // Menangani URL berisi ?code=... atau #access_token=...
-        await supabase.auth.exchangeCodeForSession(window.location.href);
-      } catch (e) {
-        console.warn('exchangeCodeForSession error:', e?.message || e);
-      } finally {
-        navigate('/portal', { replace: true });
-      }
+      // Tukar code->session lalu bersihkan URL dan masuk ke portal
+      await supabase.auth.exchangeCodeForSession(window.location.href);
+      navigate('/portal', { replace: true });
     })();
   }, [navigate]);
   return <div className="container">Menyelesaikan login…</div>;
 }
 
-/* ---------- App routes ---------- */
 export default function App() {
   return (
     <>
-      <Header/>
+      <Header />
       <Routes>
-        {/* Supabase akan kembali ke sini → kita selesaikan session & redirect */}
-        <Route path="/.auth/callback" element={<AuthCallback/>} />
-
-        <Route path="/login"  element={<LoginPage/>} />
-        <Route path="/portal" element={<RequireAuth><PortalApp/></RequireAuth>} />
-        <Route path="/admin"  element={<RequireAdmin><AdminApp/></RequireAdmin>} />
-
-        <Route path="*" element={<Navigate to="/portal" replace/>} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/portal" element={<RequireAuth><PortalApp /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAdmin><AdminApp /></RequireAdmin>} />
+        <Route path="*" element={<Navigate to="/portal" replace />} />
       </Routes>
     </>
   );
