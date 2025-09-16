@@ -1,11 +1,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Check, PlusCircle, PackageSearch, Truck, QrCode, Files, Download, Globe } from "lucide-react";
+import { supabase } from './lib/supabase';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const RATE = { baseFee: 5000, jasaJastip: 3000, perKg: 12000, volumetricDivisor: 6000 };
 const CUT_OFF_DAY = "Selasa";
