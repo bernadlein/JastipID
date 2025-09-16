@@ -169,7 +169,7 @@ export default function AdminApp(){
   async function addToBatch(parcelId, batchCode){
     setBusy(true);
     try{
-      const seal = prompt("Nomor segel BAG (opsional):",""); // optional
+      const seal = prompt("Nomor segel BAG (opsional):","");
       const bagId = prompt("ID BAG/karung (opsional):","BAG-001");
       const upd = { status: seal ? "BAGGED" : "READY_TO_SHIP", batch_code:batchCode, bag_id:bagId||null, seal_number:seal||null };
       const { error } = await supabase.from("parcels").update(upd).eq("id", parcelId);
@@ -226,6 +226,7 @@ export default function AdminApp(){
       </div>
 
       <div className="container">
+        {/* customers */}
         {tab==="customers" && (
           <Section title={t("customers")} right={<span className="meta">{t("uniq")}</span>}>
             <div className="grid grid-3" style={{opacity:busy?.8:1}}>
@@ -245,6 +246,7 @@ export default function AdminApp(){
           </Section>
         )}
 
+        {/* prealert */}
         {tab==="prealert" && (
           <Section title={t("prealert")}>
             <div className="grid grid-5">
@@ -269,6 +271,7 @@ export default function AdminApp(){
           </Section>
         )}
 
+        {/* receive */}
         {tab==="receive" && (
           <Section title={t("receive")}>
             <div className="grid grid-6">
@@ -300,6 +303,7 @@ export default function AdminApp(){
           </Section>
         )}
 
+        {/* billing */}
         {tab==="billing" && (
           <Section title={t("billing")}>
             <table>
@@ -321,6 +325,7 @@ export default function AdminApp(){
           </Section>
         )}
 
+        {/* batches */}
         {tab==="batches" && (
           <Section title={t("batches")}>
             <div className="grid grid-4">
