@@ -7,8 +7,11 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,   // <-- kita tangani sendiri di /auth/callback
-      storageKey: 'sb-jastipid',   // <-- kunci storage unik, cegah tabrakan
+      // Kita tangani callback sendiri di /auth/callback
+      detectSessionInUrl: false,
+      // Pakai default storageKey untuk menghindari bentrok cache lama.
+      // Jika perlu kustom, aktifkan lagi setelah login stabil.
+      // storageKey: 'sb-jastipid',
     },
   }
 );
