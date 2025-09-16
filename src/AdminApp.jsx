@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, PlusCircle, Download } from "lucide-react";
+import { Check, PlusCircle, Download, Trash2 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 
 const RATE = { baseFee: 5000, jasaJastip: 3000, perKg: 12000, volumetricDivisor: 6000 };
@@ -108,6 +108,13 @@ export default function AdminApp(){
     }catch(e){ alert(`Failed: ${e.message}`); } finally{ setBusy(false); }
   }
 
+  async function deleteCustomer(id){
+    if(!confirm("Hapus pelanggan ini? Parcels terkait (jika ada) tidak dihapus.")) return;
+    const { error } = await supabase.from("customers").delete().eq("id", id);
+    if(error) return alert(error.message);
+    await loadAll();
+  }
+
   async function addPreAlert(){
     setBusy(true);
     try{
@@ -124,9 +131,17 @@ export default function AdminApp(){
     setBusy(true);
     try{
       if(!rx.resi) throw new Error("Provide tracking number");
-      const { data:found, error:qErr } = await supabase.from("parcels").select("*").eq("resi", rx.resi).limit(1).maybeSingle();
+
+      // HARUS sudah pre-alert & masih EXPECTED
+      const { data:found, error:qErr } = await supabase
+        .from("parcels")
+        .select("*")
+        .eq("resi", rx.resi)
+        .limit(1)
+        .maybeSingle();
       if(qErr) throw qErr;
       if(!found) throw new Error("Resi belum ada di sistem. Buat PRE-ALERT dulu.");
+      if(found.status !== "EXPECTED") throw new Error(`Status sekarang ${found.status}. Hanya bisa proses yang EXPECTED.`);
 
       const photoUrl = rx.photo_in ? await uploadProof(rx.photo_in, "inbound") : null;
       const fee = computeFee({ weight:Number(rx.weight), l:Number(rx.l), w:Number(rx.w), h:Number(rx.h) });
@@ -226,7 +241,6 @@ export default function AdminApp(){
       </div>
 
       <div className="container">
-        {/* customers */}
         {tab==="customers" && (
           <Section title={t("customers")} right={<span className="meta">{t("uniq")}</span>}>
             <div className="grid grid-3" style={{opacity:busy?.8:1}}>
@@ -239,14 +253,26 @@ export default function AdminApp(){
 
             <div className="mt">
               <table>
-                <thead><tr><th>{t("name")}</th><th>Code</th><th>WA</th><th>{t("address")}</th></tr></thead>
-                <tbody>{customers.map(c=>(<tr key={c.id}><td>{c.name}</td><td>{c.code}</td><td>{c.wa}</td><td>{c.address}</td></tr>))}</tbody>
+                <thead>
+                  <tr>
+                    <th>{t("name")}</th><th>Code</th><th>WA</th><th>{t("address")}</th><th>{t("table.action")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map(c=>(
+                    <tr key={c.id}>
+                      <td>{c.name}</td><td>{c.code}</td><td>{c.wa}</td><td>{c.address}</td>
+                      <td className="flex">
+                        <button className="btn" onClick={()=>deleteCustomer(c.id)} title="Hapus"><Trash2 size={16}/></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           </Section>
         )}
 
-        {/* prealert */}
         {tab==="prealert" && (
           <Section title={t("prealert")}>
             <div className="grid grid-5">
@@ -265,13 +291,14 @@ export default function AdminApp(){
             <div className="mt">
               <table>
                 <thead><tr><th>{t("table.resi")}</th><th>{t("table.customer")}</th><th>{t("table.status")}</th></tr></thead>
-                <tbody>{parcelsEnriched.filter(p=>p.status==="EXPECTED").map(p=>(<tr key={p.id}><td>{p.resi}</td><td>{p.customer_name} [{p.customer_code}]</td><td>{p.status}</td></tr>))}</tbody>
+                <tbody>{parcelsEnriched.filter(p=>p.status==="EXPECTED").map(p=>(
+                  <tr key={p.id}><td>{p.resi}</td><td>{p.customer_name} [{p.customer_code}]</td><td>{p.status}</td></tr>
+                ))}</tbody>
               </table>
             </div>
           </Section>
         )}
 
-        {/* receive */}
         {tab==="receive" && (
           <Section title={t("receive")}>
             <div className="grid grid-6">
@@ -303,7 +330,6 @@ export default function AdminApp(){
           </Section>
         )}
 
-        {/* billing */}
         {tab==="billing" && (
           <Section title={t("billing")}>
             <table>
@@ -325,7 +351,6 @@ export default function AdminApp(){
           </Section>
         )}
 
-        {/* batches */}
         {tab==="batches" && (
           <Section title={t("batches")}>
             <div className="grid grid-4">
