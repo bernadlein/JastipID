@@ -1,8 +1,6 @@
-
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, PlusCircle, PackageSearch, Truck, QrCode, Files, Download, Globe } from "lucide-react";
-import { supabase } from './lib/supabase';
-
+import { Check, PlusCircle, Download } from "lucide-react";
+import { supabase } from "./lib/supabase";
 
 const RATE = { baseFee: 5000, jasaJastip: 3000, perKg: 12000, volumetricDivisor: 6000 };
 const CUT_OFF_DAY = "Selasa";
@@ -70,7 +68,7 @@ function Section({ title, children, right }){
   );
 }
 
-export default function App(){
+export default function AdminApp(){
   const { t, lang, swap } = useI18n();
   const [tab, setTab] = useState("customers");
   const [busy, setBusy] = useState(false);
@@ -171,7 +169,7 @@ export default function App(){
   async function addToBatch(parcelId, batchCode){
     setBusy(true);
     try{
-      const seal = prompt("Nomor segel BAG (opsional):","");
+      const seal = prompt("Nomor segel BAG (opsional):",""); // optional
       const bagId = prompt("ID BAG/karung (opsional):","BAG-001");
       const upd = { status: seal ? "BAGGED" : "READY_TO_SHIP", batch_code:batchCode, bag_id:bagId||null, seal_number:seal||null };
       const { error } = await supabase.from("parcels").update(upd).eq("id", parcelId);
