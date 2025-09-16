@@ -5,10 +5,9 @@ import PortalApp from './PortalApp';
 import AdminApp from './AdminApp';
 import { LogIn, LogOut } from 'lucide-react';
 
-/* ===================== AUTH LAYER (Context) ===================== */
 const AuthCtx = createContext(null);
 function AuthProvider({ children }) {
-  const [session, setSession] = useState(undefined); // undefined=loading, null=guest
+  const [session, setSession] = useState(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -37,7 +36,6 @@ function AuthProvider({ children }) {
 }
 function useAuth() { return useContext(AuthCtx); }
 
-/* ===================== ACTIONS ===================== */
 async function signInGoogle() {
   await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -53,7 +51,6 @@ async function signOut() {
   window.location.assign('/');
 }
 
-/* ===================== UI BITS ===================== */
 function Header() {
   const { session } = useAuth();
   return (
@@ -101,7 +98,7 @@ function LoginPage() {
   );
 }
 
-/* ===== Callback: handle PKCE (?code=) & implicit (#access_token) ===== */
+/* ===== Robust callback: handle #access_token (implicit) & ?code (PKCE) ===== */
 function AuthCallback() {
   const navigate = useNavigate();
 
@@ -112,23 +109,24 @@ function AuthCallback() {
         const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
         const qs   = url.searchParams;
 
-        const hasToken = hash.has('access_token');
-        const hasCode  = qs.has('code');
+        const access_token  = hash.get('access_token');
+        const refresh_token = hash.get('refresh_token');
+        const code          = qs.get('code');
 
-        if (!hasToken && !hasCode) {
+        if (access_token && refresh_token) {
+          // implicit flow → set session manual
+          const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (error) throw error;
+        } else if (code) {
+          // PKCE flow
+          const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+          if (error) throw error;
+        } else {
           navigate('/login', { replace: true });
           return;
         }
 
-        if (hasToken) {
-          const { error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
-          if (error) throw error;
-        }
-
-        // bersihkan URL callback
+        // bersihkan URL
         window.history.replaceState({}, document.title, '/auth/callback');
 
         // redirect by role
@@ -144,7 +142,6 @@ function AuthCallback() {
   return <div className="container">Menyelesaikan login…</div>;
 }
 
-/* ===================== APP ROOT ===================== */
 export default function App() {
   return (
     <AuthProvider>
