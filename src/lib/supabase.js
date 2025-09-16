@@ -5,9 +5,10 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY,
   {
     auth: {
-      autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: true, // penting saat kembali dari OAuth
+      autoRefreshToken: true,
+      detectSessionInUrl: false,   // <-- kita tangani sendiri di /auth/callback
+      storageKey: 'sb-jastipid',   // <-- kunci storage unik, cegah tabrakan
     },
   }
 );
